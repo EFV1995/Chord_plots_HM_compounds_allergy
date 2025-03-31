@@ -1,0 +1,132 @@
+R/01_setup.R
+
+# Load required libraries
+library(dplyr)
+library(reshape2)
+library(circlize)
+library(RColorBrewer)
+library(readxl)
+library(grid)
+
+# Define input and output paths
+data_file <- file.path("data", "chord_diagram_data.xlsx")
+output_dir <- "output"
+if (!dir.exists(output_dir)) dir.create(output_dir)
+
+# Read data
+df <- read_excel(data_file, sheet = "Chord diagram non-inf")  # <- Make sure sheet name is correct
+
+# Order and color config
+desired_order1 <- unique(df$source)
+desired_order2 <- unique(df$target)
+unique_elements <- unique(c(df$source, df$target))
+set.seed(42)
+element_colors <- setNames(colorRampPalette(brewer.pal(8, "Set2"))(length(unique_elements)), unique_elements)
+
+
+R/02_chord_function.R
+
+plot_chord_for_type <- function(df, link_type, filename, output_dir) {
+  message(paste0("⏳ Creating diagram for: ", link_type))
+  
+  link_df <- df %>% filter(colour == link_type)
+  if (nrow(link_df) == 0) {
+    message(paste0("⚠️ No data found for link type: ", link_type))
+    return(NULL)
+  }
+
+  link_matrix <- acast(link_df, source ~ target, value.var = "value", fun.aggregate = sum, fill = 0)
+  rows_to_keep <- intersect(desired_order1, rownames(link_matrix))
+  cols_to_keep <- intersect(desired_order2, colnames(link_matrix))
+  reordered_matrix <- link_matrix[rows_to_keep, cols_to_keep, drop = FALSE]
+
+  unique_types <- unique(link_df$type)
+  link_palette <- setNames(colorRampPalette(brewer.pal(8, "Dark2"))(length(unique_types)), unique_types)
+  link_df$col <- link_palette[link_df$type]
+
+  node_names <- unique(c(link_df$source, link_df$target))
+  sector_colors <- setNames(rep("grey90", length(node_names)), node_names)
+
+  output_file <- file.path(output_dir, paste0(filename, ".png"))
+  png(output_file, width = 11 * 300, height = 12 * 300, res = 300, bg = "white")
+  
+  par(mar = c(2, 2, 2, 2))
+  circos.clear()
+  circos.par("canvas.xlim" = c(-1.3, 1.3), 
+             "canvas.ylim" = c(-1.3, 1.3),
+             start.degree = 90)
+
+  chordDiagram(link_df[, c("source", "target", "value")],
+               grid.col = sector_colors,
+               col = link_df$col,
+               annotationTrack = "grid",
+               preAllocateTracks = list(track.height = 0.08))
+
+  circos.trackPlotRegion(track.index = 2, panel.fun = function(x, y) {
+    xlim <- get.cell.meta.data("xlim")
+    ylim <- get.cell.meta.data("ylim")
+    sector.name <- get.cell.meta.data("sector.index")
+    
+    circos.text(mean(xlim), ylim[2] + mm_y(5),
+                labels = sector.name,
+                facing = "clockwise", niceFacing = TRUE,
+                adj = c(0, 0.5), cex = 0.8)
+    
+    circos.axis(h = "top", labels.cex = 0.65,
+                major.tick.length = convert_height(3, "mm"),
+                sector.index = sector.name, track.index = 2)
+  }, bg.border = NA)
+
+  dev.off()
+  circos.clear()
+  message(paste0("✅ Saved chord diagram: ", output_file))
+}
+
+
+ R/03_run_plots.R
+
+source("R/02_chord_function.R")
+
+plot_chord_for_type(df, "Direct", "chord_direct", output_dir)
+plot_chord_for_type(df, "Inverse", "chord_inverse", output_dir)
+plot_chord_for_type(df, "No", "chord_no", output_dir)
+
+R/04_generate_legend.R
+
+save_type_legend <- function(types, palette, filename = "chord_legend.png", output_dir = "output") {
+  png(filename = file.path(output_dir, filename), width = 1000, height = 600, res = 150, bg = "transparent")
+  grid.newpage()
+  n <- length(types)
+  legend_labels <- names(palette)
+  
+  for (i in seq_len(n)) {
+    grid.rect(x = unit(0.1, "npc"),
+              y = unit(1 - i * 0.08, "npc"),
+              width = unit(0.03, "npc"),
+              height = unit(0.03, "npc"),
+              gp = gpar(fill = palette[i], col = NA))
+    
+    grid.text(label = legend_labels[i],
+              x = unit(0.15, "npc"),
+              y = unit(1 - i * 0.08, "npc"),
+              just = "left", gp = gpar(fontsize = 14))
+  }
+  dev.off()
+  message("✅ Legend saved.")
+}
+
+# Example call
+link_df <- df %>% filter(colour == "No")
+unique_types <- unique(link_df$type)
+link_palette <- setNames(colorRampPalette(brewer.pal(8, "Dark2"))(length(unique_types)), unique_types)
+save_type_legend(unique_types, link_palette, filename = "chord_no_legend.png", output_dir)
+
+
+ run_all.R
+# Entry script to run the whole process
+source("R/01_setup.R")
+source("R/02_chord_function.R")
+source("R/03_run_plots.R")
+source("R/04_generate_legend.R")
+
+
