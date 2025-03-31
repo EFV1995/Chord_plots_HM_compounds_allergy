@@ -1,4 +1,4 @@
-R/01_setup.R
+#R/01_setup.R
 
 # Load required libraries
 library(dplyr)
@@ -24,7 +24,7 @@ set.seed(42)
 element_colors <- setNames(colorRampPalette(brewer.pal(8, "Set2"))(length(unique_elements)), unique_elements)
 
 
-R/02_chord_function.R
+#R/02_chord_function.R
 
 plot_chord_for_type <- function(df, link_type, filename, output_dir) {
   message(paste0("⏳ Creating diagram for: ", link_type))
@@ -83,7 +83,7 @@ plot_chord_for_type <- function(df, link_type, filename, output_dir) {
 }
 
 
- R/03_run_plots.R
+#R/03_run_plots.R
 
 source("R/02_chord_function.R")
 
@@ -91,7 +91,7 @@ plot_chord_for_type(df, "Direct", "chord_direct", output_dir)
 plot_chord_for_type(df, "Inverse", "chord_inverse", output_dir)
 plot_chord_for_type(df, "No", "chord_no", output_dir)
 
-R/04_generate_legend.R
+#R/04_generate_legend.R
 
 save_type_legend <- function(types, palette, filename = "chord_legend.png", output_dir = "output") {
   png(filename = file.path(output_dir, filename), width = 1000, height = 600, res = 150, bg = "transparent")
@@ -122,7 +122,7 @@ link_palette <- setNames(colorRampPalette(brewer.pal(8, "Dark2"))(length(unique_
 save_type_legend(unique_types, link_palette, filename = "chord_no_legend.png", output_dir)
 
 
- run_all.R
+#run_all.R
 # Entry script to run the whole process
 source("R/01_setup.R")
 source("R/02_chord_function.R")
