@@ -1,0 +1,102 @@
+# ───────────────────────────────────────────────────────────────
+# Meta-Analysis of Human Milk fatty acids (All, Colostrum & Mature) and infant risk of Atopic Dermatitis
+# Author: [Eduard Flores]
+# ───────────────────────────────────────────────────────────────
+
+# Load Required Libraries
+library(meta)
+library(dplyr)
+library(ggplot2)
+
+# Check the df you are working with for the meta_analysis
+MA_omega6
+data_for_omega6 <- MA_omega6
+omega_3
+data_omega_3 <- omega_3
+Linoleic_Acid
+data_Linoleic_Acid <- Linoleic_Acid
+Linolenic_Acid
+data_Linolenic_Acid <- Linolenic_Acid
+DGLA
+data_DGLA <- DGLA
+Arachidonic_Acid
+data_Arachidonic_Acid <- Arachidonic_Acid
+EPA
+data_EPA <- EPA
+n6_n3
+data_n6_n3ratio <- n6_n3
+# ───────────────────────────────────────────────────────────────
+# Load Dataset (ensure data_n6_n3ratio is loaded in your environment)
+# You should load this from a CSV, Excel, or .RData file before running
+
+# Example: data_n6_n3ratio <- read.csv("data/n6_n3_data.csv")
+
+# ───────────────────────────────────────────────────────────────
+# Estimate SD from 95% CI
+compute_sd <- function(lower, upper, n) {
+  (upper - lower) / (2 * 1.96)
+}
+
+data_n6_n3ratio <- data_n6_n3ratio %>%
+  mutate(
+    SD_with_AD = compute_sd(Lower_interval_with_AD...5, Upper_interval_with_AD...6, Sample_size_with_AD),
+    SD_without_AD = compute_sd(Lower_interval_with_AD...9, Upper_interval_with_AD...10, Sample_size_without_AD)
+  )
+
+# ───────────────────────────────────────────────────────────────
+# Split Dataset by Human Milk Category
+data_mature <- filter(data_n6_n3ratio, HM_category == "Mature")
+data_colostrum <- filter(data_n6_n3ratio, HM_category == "Colostrum")
+
+# ───────────────────────────────────────────────────────────────
+# Meta-Analysis Function
+run_meta <- function(data, title) {
+  metacont(
+    n.e = Sample_size_with_AD,
+    mean.e = Infants_with_AD,
+    sd.e = SD_with_AD,
+    n.c = Sample_size_without_AD,
+    mean.c = Infant_without_AD,
+    sd.c = SD_without_AD,
+    studlab = Reference,
+    data = data,
+    sm = "SMD",
+    method.smd = "Hedges",
+    comb.fixed = TRUE,
+    comb.random = TRUE
+  )
+}
+
+meta_mature <- run_meta(data_mature, "Mature")
+meta_colostrum <- run_meta(data_colostrum, "Colostrum")
+meta_all <- run_meta(data_n6_n3ratio, "All Combined")
+
+# ───────────────────────────────────────────────────────────────
+# Meta-Regression by HM Category
+meta_regression <- metareg(meta_all, HM_category)
+
+# ───────────────────────────────────────────────────────────────
+# 🖨Print Summary Results
+print(meta_mature)
+print(meta_colostrum)
+print(meta_all)
+print(meta_regression)
+
+# ───────────────────────────────────────────────────────────────
+# Save Forest Plots to Output Folder
+output_dir <- "output"
+if (!dir.exists(output_dir)) dir.create(output_dir)
+
+save_forest_plot <- function(meta_obj, title, filename) {
+  png(filename = file.path(output_dir, filename), width = 3800, height = 1000, res = 300)
+  forest(meta_obj,
+         main = title,
+         sortvar = meta_obj$TE,
+         label.e = "With AD",
+         label.c = "Without AD")
+  dev.off()
+}
+
+save_forest_plot(meta_mature, "Meta-analysis: Mature Milk", "forest_plot_mature_ration6n3_SMD.png")
+save_forest_plot(meta_colostrum, "Meta-analysis: Colostrum", "forest_plot_colostrum_ration6n3_SMD.png")
+save_forest_plot(meta_all, "Meta-analysis: All Studies Combined", "forest_plot_all_ration6n3_SMD.png")
